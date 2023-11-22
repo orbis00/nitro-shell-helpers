@@ -21,11 +21,11 @@ test_urls_from_stdin() {
     RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
-    echo "Starting Integration Test at $HOST / `date`" | tee /tmp/test_$RAND
+    echo "Starting Integration Test at $HOST / `date`" | tee -a /tmp/test_$RAND
     while read params; do
-       test_single_url $params | tee /tmp/test_$RAND
+       test_single_url $params | tee -a /tmp/test_$RAND
     done
-    echo "Integration Test Done for $HOST..." | tee /tmp/test_$RAND
+    echo "Integration Test Done for $HOST..." | tee -a /tmp/test_$RAND
 
     slack "$HOOK" /tmp/test_$RAND
     rm -f /tmp/test_$RAND
