@@ -2,6 +2,7 @@
 
 slack() {
    json="`jq -n --rawfile file $1 '{"text":$file}'`"
+   echo "$json"
    curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/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
 }
 
