@@ -1,8 +1,5 @@
 #!/bin/bash
 
-HOST="https://getnitro.co"
-RAND=$RANDOM
-
 slack() {
    json="`jq -n --rawfile file $1 '{"text":$file}'`"
    curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/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
@@ -19,6 +16,8 @@ test_url() {
 
 
 test_urls_from_stdin() {
+    HOST="https://getnitro.co"
+    RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
     echo "Starting Integration Test..."
