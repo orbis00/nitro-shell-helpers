@@ -20,7 +20,7 @@ test_urls_from_stdin() {
     RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
-    echo "Starting Integration Test..."
+    echo "Starting Integration Test at $HOST..."
     while read params; do
        echo "Testing $params"
        test_url $params >> /tmp/test_$RAND
