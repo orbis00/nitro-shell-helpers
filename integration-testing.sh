@@ -1,9 +1,8 @@
 #!/bin/bash
 
 slack() {
-   json="`jq -n --rawfile file $1 '{"text":$file}'`"
-   echo "$json"
-   curl -X POST -H 'Content-type: application/json' --data "$json" $1
+   json="`jq -n --rawfile file $2 '{"text":$file}'`"
+   curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/$1
 }
 
 test_url() {
@@ -22,12 +21,12 @@ test_urls_from_stdin() {
     RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
-    echo "Starting Integration Test at $HOST..."
+    echo "Starting Integration Test at $HOST..." | tee /tmp/test_$RAND
     while read params; do
-       echo "Testing $params"
        test_url $params | tee /tmp/test_$RAND
     done
+    echo "Integration Test Done for $HOST..." | tee /tmp/test_$RAND
 
     slack "$HOOK" /tmp/test_$RAND
-    #rm -f /tmp/test_$RAND
+    rm -f /tmp/test_$RAND
 }
