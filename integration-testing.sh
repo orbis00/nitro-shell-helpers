@@ -1,15 +1,16 @@
 #!/bin/bash
 
-check_and_make_lock() {
+cleanup_atexit() {
+    rm -f "$1"
+}
+
+make_singleton() {
     if [ -f "$1" ]; then
         echo "Script is already running.."
         exit 1
     fi
+    trap "cleanup_atexit $1" EXIT
     touch "$1"
-}
-
-cleanup_atexit() {
-    rm -f "$1"
 }
 
 slack() {

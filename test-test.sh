@@ -2,8 +2,8 @@
 
 source integration-testing.sh
 
-check_and_make_lock /tmp/.lockfile
-trap "cleanup_atexit /tmp/.lockfile" EXIT
+make_singleton /tmp/.lockfile
+
 
 sleep 20
 echo "Test"
