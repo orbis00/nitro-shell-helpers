@@ -9,7 +9,7 @@ make_singleton() {
         echo "Script is already running.."
         exit 1
     fi
-    trap "cleanup_atexit $1" EXIT INT TERM
+    trap "cleanup_atexit $1" EXIT 
     touch "$1"
 }
 
