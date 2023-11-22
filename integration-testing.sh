@@ -23,6 +23,7 @@ test_urls_from_stdin() {
 
     echo "Starting Integration Test..."
     while read params; do
+       echo "Testing $params"
        test_url $params >> /tmp/test_$RAND
     done
 
