@@ -1,5 +1,17 @@
 #!/bin/bash
 
+check_and_make_lock() {
+    if [ -f "$1" ]; then
+        echo "Script is already running.."
+        exit 1
+    fi
+    touch "$1"
+}
+
+cleanup_atexit() {
+    rm -f "$1"
+}
+
 slack() {
    json="`jq -n --rawfile file $2 '{"text":$file}'`"
    curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/$1
@@ -21,7 +33,7 @@ test_urls_from_stdin() {
     RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
-    echo "Starting Integration Test at $HOST / `date`" | tee -a /tmp/test_$RAND
+    echo "Starting Integration Test at $HOST" | tee -a /tmp/test_$RAND
     while read params; do
        test_single_url $params | tee -a /tmp/test_$RAND
     done
