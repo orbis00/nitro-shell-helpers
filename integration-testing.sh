@@ -3,7 +3,7 @@
 slack() {
    json="`jq -n --rawfile file $1 '{"text":$file}'`"
    echo "$json"
-   curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/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
+   curl -X POST -H 'Content-type: application/json' --data "$json" $1
 }
 
 test_url() {
@@ -17,7 +17,8 @@ test_url() {
 
 
 test_urls_from_stdin() {
-    HOST="$1"
+    HOOK="$1"
+    HOST="$2"
     RAND=$RANDOM
     truncate -s0 /tmp/test_$RAND
 
@@ -27,6 +28,6 @@ test_urls_from_stdin() {
        test_url $params | tee /tmp/test_$RAND
     done
 
-    slack /tmp/test_$RAND
+    slack "$HOOK" /tmp/test_$RAND
     #rm -f /tmp/test_$RAND
 }
