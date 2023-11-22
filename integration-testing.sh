@@ -5,7 +5,7 @@ slack() {
    curl -X POST -H 'Content-type: application/json' --data "$json" https://hooks.slack.com/services/$1
 }
 
-test_url() {
+test_single_url() {
    resp_code=$(curl -s -o /dev/null -w "%{http_code}" "$HOST$2")
    if [ "$resp_code" = "$1" ]; then
        echo "Passed $HOST$2 (Got: $resp_code)"
@@ -23,7 +23,7 @@ test_urls_from_stdin() {
 
     echo "Starting Integration Test at $HOST / `date`" | tee /tmp/test_$RAND
     while read params; do
-       test_url $params | tee /tmp/test_$RAND
+       test_single_url $params | tee /tmp/test_$RAND
     done
     echo "Integration Test Done for $HOST..." | tee /tmp/test_$RAND
 
