@@ -23,7 +23,7 @@ test_urls_from_stdin() {
     echo "Starting Integration Test at $HOST..."
     while read params; do
        echo "Testing $params"
-       test_url $params >> /tmp/test_$RAND
+       test_url $params | tee /tmp/test_$RAND
     done
 
     slack /tmp/test_$RAND
