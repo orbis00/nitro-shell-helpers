@@ -43,3 +43,23 @@ test_urls_from_stdin() {
     slack "$HOOK" /tmp/test_$RAND
     rm -f /tmp/test_$RAND
 }
+
+continue_script_if_new_version() {
+    remote_version="`git ls-remote "git@github.com:$1" "$2" | cut -f 1 | xargs`"
+    local_version="`git rev-parse HEAD`"
+
+    echo "Remote: $remote_version vs Local: $local_version"
+    if [ "$remote_version" = "$local_version" ]; then
+        echo "Same remote version, nothing to deploy."
+        exit 1
+    fi
+}
+
+deploy() {
+    truncate -s0 /tmp/$1
+    echo "Deploying... in `pwd`" | tee -a /tmp/$1
+    git pull 2>&1 | tee -a /tmp/$1
+    make deploy 2>&1 | tee -a /tmp/$1
+    echo "Finished deploy: `date`" | tee -a /tmp/$1
+}
+
