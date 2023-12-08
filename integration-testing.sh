@@ -63,10 +63,12 @@ deploy() {
     git pull 2>&1 | tee -a /tmp/$1
     make deploy 2>&1 | tee -a /tmp/$1_makeoutput
     result=$?
-    echo "Deploy Result: $result" | tee /tmp/$1
     if [ $result != 0 ]; then
         # some issue with Make - lets add to slack output.
+        echo "Deploy Result: failed" | tee -a /tmp/$1
         cat /tmp/$1_makeoutput >> /tmp/$1
+    else
+        echo "Deploy Result: success" | tee -a /tmp/$1
     fi
     echo "Finished deploy: `date`" | tee -a /tmp/$1
 }
