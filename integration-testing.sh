@@ -57,9 +57,11 @@ continue_script_if_new_version() {
 
 deploy() {
     truncate -s0 /tmp/$1
-    echo "Deploying... in `pwd`" | tee -a /tmp/$1
+    truncate -s0 /tmp/$1_makeoutput
+
+    echo "Deploying... in `pwd` for: $1" | tee -a /tmp/$1
     git pull 2>&1 | tee -a /tmp/$1
-    make deploy 2>&1 | tee /tmp/$1_makeoutput
+    make deploy 2>&1 | tee -a /tmp/$1_makeoutput
     result=$?
     echo "Deploy Result: $result" | tee /tmp/$1
     if [ $result != 0 ]; then
