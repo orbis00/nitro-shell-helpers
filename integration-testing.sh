@@ -65,10 +65,14 @@ deploy() {
     result=$?
     if [ $result != 0 ]; then
         # some issue with Make - lets add to slack output.
+        echo "-------------------------------------" | tee -a /tmp/$1
         echo "Deploy Result: failed" | tee -a /tmp/$1
+        echo "-------------------------------------" | tee -a /tmp/$1
         cat /tmp/$1_makeoutput >> /tmp/$1
     else
+        echo "-------------------------------------" | tee -a /tmp/$1
         echo "Deploy Result: success" | tee -a /tmp/$1
+        echo "-------------------------------------" | tee -a /tmp/$1
     fi
     echo "Finished deploy: `date`" | tee -a /tmp/$1
 }
