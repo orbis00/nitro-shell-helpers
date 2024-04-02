@@ -7,7 +7,7 @@ make_singleton /tmp/.nmapping.lock
 FOR="nmaping"
 truncate -s0 /tmp/$FOR
 
-HOSTS=(34.131.58.144 34.131.11.11)
+HOSTS=(34.131.58.144 34.131.11.11 34.131.119.204)
 
 for h in ${HOSTS[@]}; do
     echo "Scanning.. $h"
