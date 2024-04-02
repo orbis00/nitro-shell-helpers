@@ -12,11 +12,11 @@ HOSTS=(34.131.58.144 34.131.11.11)
 for h in ${HOSTS[@]}; do
     echo "Scanning.. $h"
     nmap -Pn $h 2>&1 > /tmp/scan-details.log
-    cat /tmp/scan-details.log | grep -v '^80/tcp' | grep -v '^22/tcp' | grep -v 'closed' |grep -P '^\d+\/(tcp|udp).+'
+    cat /tmp/scan-details.log | grep -v '^80/tcp' | grep -v '^22/tcp' | grep -v '^443/tcp' | grep -v 'closed' |grep -P '^\d+\/(tcp|udp).+'
     res="$?"
     if [ "$res" = 0 ]; then
         echo "Security issue for $h!" >> /tmp/$FOR
-	cat /tmp/scan-details.log | grep -v '^80/tcp' | grep -v '^22/tcp' | grep -v 'closed' |grep -P '^\d+\/(tcp|udp).+' >> /tmp/$FOR
+	cat /tmp/scan-details.log | grep -v '^80/tcp' | grep -v '^22/tcp' | grep -v '^443/tcp' | grep -v 'closed' |grep -P '^\d+\/(tcp|udp).+' >> /tmp/$FOR
     else
         echo "No Security Leak for $h - We are good!" >> /tmp/$FOR
     fi
