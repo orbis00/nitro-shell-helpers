@@ -5,6 +5,30 @@
 
 set -e
 
+# GitHub repository configuration
+GITHUB_BASE_URL="https://raw.githubusercontent.com/orbis00/nitro-shell-helpers/stackup"
+
+# Function to execute script directly from GitHub
+execute_remote_script() {
+    local script_name="$1"
+    shift
+    local args=("$@")
+    
+    print_status "Executing $script_name from GitHub..."
+    if curl -s -f "${GITHUB_BASE_URL}/${script_name}?_=${RANDOM}" | bash -s -- "${args[@]}"; then
+        return 0
+    else
+        print_error "Failed to execute $script_name from GitHub"
+        return 1
+    fi
+}
+
+# Function to get repos.yaml content from GitHub
+get_remote_repos_yaml() {
+    print_status "Loading repositories configuration from GitHub..."
+    curl -s -f "${GITHUB_BASE_URL}/repos.yaml?_=${RANDOM}"
+}
+
 # Logging configuration
 LOG_FILE="/var/log/stackup.log"
 LOG_ENABLED=true
@@ -177,24 +201,45 @@ parse_yaml_simple() {
 # Function to parse YAML and get repositories
 get_repositories() {
     local config_file="$1"
+    local use_remote=false
     
-    if [ ! -f "$config_file" ]; then
-        print_error "Configuration file not found: $config_file"
-        exit 1
+    # Check if we should use remote repos.yaml
+    if [ "$config_file" = "repos.yaml" ] && [ ! -f "$config_file" ]; then
+        use_remote=true
     fi
     
-    if command -v yq &> /dev/null; then
-        # Check yq version and use appropriate syntax
-        if yq --version 2>&1 | grep -q "mikefarah"; then
-            # New yq (mikefarah version)
-            yq eval '.repositories[] | .name + "|" + .url + "|" + (.make_commands // [] | join(" "))' "$config_file"
+    if [ "$use_remote" = true ]; then
+        # Get repos.yaml content from GitHub and parse it
+        local temp_file=$(mktemp)
+        if get_remote_repos_yaml > "$temp_file" 2>/dev/null; then
+            parse_yaml_simple "$temp_file"
+            rm -f "$temp_file"
         else
-            # Old yq or different version - fall back to manual parsing
-            parse_yaml_simple "$config_file"
+            echo "" >&2
+            print_error "Failed to load repositories configuration from GitHub" >&2
+            exit 1
         fi
     else
-        # Fallback to simple parser
-        parse_yaml_simple "$config_file"
+        # Use local file
+        if [ ! -f "$config_file" ]; then
+            echo "" >&2
+            print_error "Configuration file not found: $config_file" >&2
+            exit 1
+        fi
+        
+        if command -v yq &> /dev/null; then
+            # Check yq version and use appropriate syntax
+            if yq --version 2>&1 | grep -q "mikefarah"; then
+                # New yq (mikefarah version)
+                yq eval '.repositories[] | .name + "|" + .url + "|" + (.make_commands // [] | join(" "))' "$config_file"
+            else
+                # Old yq or different version - fall back to manual parsing
+                parse_yaml_simple "$config_file"
+            fi
+        else
+            # Fallback to simple parser
+            parse_yaml_simple "$config_file"
+        fi
     fi
 }
 
@@ -253,7 +298,6 @@ show_make_commands_menu() {
     echo
 }
 
-# Function to process a single repository
 process_repository() {
     local repo_name="$1"
     local repo_url="$2"
@@ -268,9 +312,9 @@ process_repository() {
     local original_dir="$(pwd)"
     cd "$base_path"
     
-    # First, clone/update the repository without make commands
-    print_status "Running: $original_dir/stackup.sh $repo_url"
-    "$original_dir/stackup.sh" "$repo_url"
+    # First, clone/update the repository without make commands using remote stackup.sh
+    print_status "Running remote stackup.sh for $repo_url"
+    execute_remote_script "stackup.sh" "$repo_url"
     
     # Then run make commands if make_commands are defined
     if [ -n "$make_commands" ]; then
@@ -280,8 +324,8 @@ process_repository() {
         if [ ${#commands[@]} -gt 0 ]; then
             print_status "Running ${#commands[@]} make command(s) in sequence: ${commands[*]}"
             for cmd in "${commands[@]}"; do
-                print_status "Executing: $original_dir/stackup.sh $repo_url $cmd"
-                if "$original_dir/stackup.sh" "$repo_url" "$cmd"; then
+                print_status "Executing remote stackup.sh: $repo_url $cmd"
+                if execute_remote_script "stackup.sh" "$repo_url" "$cmd"; then
                     print_success "Command '$cmd' completed successfully"
                 else
                     print_error "Command '$cmd' failed - stopping execution for $repo_name"
@@ -417,6 +461,10 @@ main() {
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
+            pre-check)
+                operation="pre-check"
+                shift
+                ;;
             down)
                 operation="down"
                 shift
@@ -438,6 +486,7 @@ main() {
                 echo ""
                 echo "Operations:"
                 echo "  (default)     Start up all repositories (clone/update and run make commands)"
+                echo "  pre-check     Configure cookie-cutter integration and WIZKE_HOST settings"
                 echo "  down          Stop all containers using 'make down'"
                 echo "  remove        Stop containers, remove volumes, and delete repository directories"
                 echo ""
@@ -474,22 +523,14 @@ main() {
 
     check_dependencies
     
-    # For up operation, check stackup.sh dependency
-    if [ "$operation" = "up" ] && [ ! -f "./stackup.sh" ]; then
-        print_error "stackup.sh not found in current directory"
-        exit 1
+    # Note: Using remote stackup.sh from GitHub, no local file needed
+    # Config file can be local or remote (handled by get_repositories function)
+    
+    # Check if we'll use remote repos.yaml and inform user
+    if [ "$config_file" = "repos.yaml" ] && [ ! -f "$config_file" ]; then
+        print_status "Local repos.yaml not found, using remote version from GitHub..."
     fi
     
-    if [ "$operation" = "up" ]; then
-        chmod +x ./stackup.sh
-    fi
-    
-    if [ ! -f "$config_file" ]; then
-        print_error "Configuration file not found: $config_file"
-        print_status "Please create a repos.yaml file or specify a different config file"
-        exit 1
-    fi
-
     print_status "Loading repositories from $config_file..."
     local repos_info=()
     while IFS= read -r line; do
@@ -503,6 +544,9 @@ main() {
 
     # Handle different operations
     case "$operation" in
+        "pre-check")
+            handle_precheck_operation
+            ;;
         "down")
             handle_down_operation "${repos_info[@]}"
             ;;
@@ -513,6 +557,34 @@ main() {
             handle_up_operation "${repos_info[@]}"
             ;;
     esac
+}
+
+# Handle pre-check operation
+handle_precheck_operation() {
+    print_header "StackUp Pre-Check Configuration"
+    
+    print_status "Starting pre-check configuration for cookie-cutter integration..."
+    echo
+    
+    # Execute remote pre-check.sh script
+    if execute_remote_script "pre-check.sh"; then
+        print_success "Pre-check configuration completed successfully!"
+        echo
+        echo -n -e "${BLUE}Do you want to run the main deployment now? (y/N): ${NC}"
+        read -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Starting main deployment..."
+            echo
+            # Re-run the script with up operation
+            exec "$0" -y
+        else
+            print_status "You can run '$0 -y' manually when ready for deployment."
+        fi
+    else
+        print_error "Pre-check configuration failed"
+        exit 1
+    fi
 }
 
 # Handle down operation
