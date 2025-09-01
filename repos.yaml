@@ -1,0 +1,29 @@
+# StackUp Repository Configuration
+# This file defines multiple repositories to be managed by StackUp
+repositories:
+  - name: "cookie-cutter"
+    url: "git@github.com:orbis00/cookie-cutter.git"
+    make_commands:
+      - "down"
+      - "run-stackup"  
+
+  - name: "nitrox"
+    url: "git@github.com:orbis00/nitrox.git"
+    make_commands:
+      - "down"
+      - "run-stackup"      
+
+  - name: "nitrox-ui"
+    url: "git@github.com:orbis00/nitrox-ui.git"
+    make_commands:
+      - "down"
+      - "run-stackup"       
+        
+    
+
+
+# You can add more repositories here
+# Each repository should have:
+# - name: A friendly name for the repository
+# - url: The git clone URL (https or ssh)
+# - make_commands: List of make targets to run (optional)
