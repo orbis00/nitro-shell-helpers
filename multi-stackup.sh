@@ -497,17 +497,28 @@ process_repository() {
         # Run ALL commands in sequential order
         if [ ${#commands[@]} -gt 0 ]; then
             print_status "Running ${#commands[@]} make command(s) in sequence: ${commands[*]}"
-            for cmd in "${commands[@]}"; do
-                print_status "Executing remote stackup.sh: $repo_url $cmd"
-                if execute_remote_script "stackup.sh" "$repo_url" "$cmd"; then
-                    print_success "Command '$cmd' completed successfully"
-                else
-                    print_error "Command '$cmd' failed - stopping execution for $repo_name"
-                    cd "$original_dir"
-                    return 1
-                fi
-            done
-            print_success "All make commands completed for $repo_name"
+            
+            # Change to repository directory to run make commands
+            local repo_path="$base_path/$repo_name"
+            if [ -d "$repo_path" ]; then
+                cd "$repo_path"
+                for cmd in "${commands[@]}"; do
+                    print_status "Executing make command: $cmd"
+                    if make "$cmd" 2>&1 | tee -a "$LOG_FILE"; then
+                        print_success "Command 'make $cmd' completed successfully"
+                    else
+                        print_error "Command 'make $cmd' failed - stopping execution for $repo_name"
+                        cd "$original_dir"
+                        return 1
+                    fi
+                done
+                print_success "All make commands completed for $repo_name"
+                cd "$base_path"  # Return to base path
+            else
+                print_error "Repository directory not found: $repo_path"
+                cd "$original_dir"
+                return 1
+            fi
         else
             print_warning "No commands found to execute"
         fi
