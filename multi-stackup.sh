@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # StackUp Multi-Repository Manager
@@ -94,6 +95,77 @@ print_warning() {
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
     log_message "ERROR" "$1"
+}
+
+### Integrated pre-check logic (from pre-check.sh)
+run_pre_check_local() {
+    local base_path="${1:-/home/$USER/nitro/}"
+    local user_url="${2:-}" # If provided, non-interactive
+    local auto_yes="${3:-false}"
+
+    print_header "StackUp Pre-Check Configuration"
+    print_status "Using base path: $base_path"
+
+    update_nitrox_env() {
+        local env_file="$base_path/nitrox/.env"
+        local url="$1"
+        if [ ! -f "$env_file" ]; then
+            print_warning ".env file not found at $env_file. Skipping update."
+            return 1
+        fi
+        sed -i "/^WIZKE_HOST=/d" "$env_file"
+        echo "WIZKE_HOST=$url" >> "$env_file"
+        print_success "Updated WIZKE_HOST in $env_file"
+    }
+
+    if [ -n "$user_url" ]; then
+        print_status "Non-interactive mode: using provided URL: $user_url"
+        update_nitrox_env "$user_url"
+        print_success "Pre-check configuration completed successfully!"
+        return 0
+    fi
+
+    print_status "This script will configure the WIZKE_HOST settings for cookie-cutter integration."
+    print_status "You need to provide your cookie-cutter local user URL."
+    print_warning "Example URL format: superHeroName-nitrox-cc.getnitro.co.in"
+    print_warning "Replace 'superHeroName' with your actual identifier"
+
+    while true; do
+        echo -n -e "${BLUE}Enter your cookie-cutter local user URL (or 'skip' to skip): ${NC}"
+        read -r user_input
+        if [ "$user_input" = "skip" ] || [ "$user_input" = "SKIP" ]; then
+            print_warning "Skipping WIZKE_HOST configuration."
+            print_status "You can run this script again later when you have the URL."
+            return 0
+        fi
+        if [ -z "$user_input" ]; then
+            print_error "Please enter a valid URL or 'skip' to skip this configuration."
+            continue
+        fi
+        if [[ "$user_input" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            if [[ ! "$user_input" =~ ^https?:// ]]; then
+                user_input="https://$user_input"
+            fi
+            break
+        else
+            print_error "Invalid URL format. Please enter a valid URL (e.g., superHeroName-nitrox-cc.getnitro.co.in)"
+            continue
+        fi
+    done
+
+    print_status "Using URL: $user_input"
+    if [ "$auto_yes" = false ]; then
+        echo -n -e "${YELLOW}Do you want to update the nitrox .env file with this URL? (y/N): ${NC}"
+        read -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_warning "Configuration cancelled by user."
+            return 0
+        fi
+    fi
+    update_nitrox_env "$user_input"
+    print_success "Pre-check configuration completed successfully!"
+    print_status "Your nitrox application is now configured to work with cookie-cutter."
 }
 
 # Function to run make up in the current directory after all repos are processed
@@ -341,6 +413,13 @@ process_repository() {
         print_status "No make commands defined for this repository"
     fi
     
+    # After all make commands, run integrated pre-check logic
+    local cc_url="${COOKIE_CUTTER_URL:-}" # If set, use non-interactive
+    if [ -n "$cc_url" ] || [ "$auto_mode" = true ]; then
+        run_pre_check_local "$base_path" "${cc_url:-superHeroName-nitrox-cc.getnitro.co.in}" true
+    else
+        run_pre_check_local "$base_path"
+    fi
     # Return to original directory
     cd "$original_dir"
 }
@@ -457,6 +536,7 @@ main() {
     local config_file="repos.yaml"
     local base_path=""
     local operation="up"  # Default operation
+    local skip_post_precheck=false  # New flag to skip post-deployment pre-check
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -477,6 +557,10 @@ main() {
                 auto_mode=true
                 shift
                 ;;
+            --skip-post-precheck)
+                skip_post_precheck=true
+                shift
+                ;;
             -p|--path)
                 base_path="$2"
                 shift 2
@@ -491,9 +575,10 @@ main() {
                 echo "  remove        Stop containers, remove volumes, and delete repository directories"
                 echo ""
                 echo "Options:"
-                echo "  -y, --yes     Automatically process all repositories (no interaction)"
-                echo "  -p, --path    Base path for all repositories (default: /home/$USER/nitro/)"
-                echo "  -h, --help    Show this help message"
+                echo "  -y, --yes                Automatically process all repositories (no interaction)"
+                echo "  --skip-post-precheck     Skip automatic post-deployment pre-check configuration"
+                echo "  -p, --path               Base path for all repositories (default: /home/$USER/nitro/)"
+                echo "  -h, --help               Show this help message"
                 echo ""
                 echo "Arguments:"
                 echo "  config_file   YAML configuration file (default: repos.yaml)"
@@ -748,6 +833,7 @@ handle_up_operation() {
         echo
         run_final_make_up
         echo
+        run_post_deployment_precheck
         print_success "StackUp multi-repository operation completed!"
         print_status "Check the full log at: $LOG_FILE"
         return 0
@@ -770,6 +856,7 @@ handle_up_operation() {
                 echo
                 run_final_make_up
                 echo
+                run_post_deployment_precheck
                 print_success "StackUp multi-repository operation completed!"
                 print_status "Check the full log at: $LOG_FILE"
                 break
@@ -797,6 +884,28 @@ handle_up_operation() {
                 ;;
         esac
     done
+}
+
+# Function to execute post-deployment pre-check configuration
+run_post_deployment_precheck() {
+    # Check if post pre-check is disabled
+    if [ "$skip_post_precheck" = true ]; then
+        print_status "Post-deployment pre-check skipped (--skip-post-precheck flag used)"
+        return 0
+    fi
+    
+    print_header "Post-Deployment Configuration"
+    
+    print_status "All repositories have been deployed successfully!"
+    print_status "Now running pre-check configuration for cookie-cutter integration..."
+    echo
+    
+    # Always run pre-check in interactive mode at the end
+    run_pre_check_local "$base_path"
+    print_success "Post-deployment configuration completed successfully!"
+    echo
+    print_status "Your entire stack is now deployed and configured!"
+    echo
 }
 
 # Run main function with all arguments
