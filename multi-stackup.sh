@@ -370,6 +370,100 @@ show_make_commands_menu() {
     echo
 }
 
+# Function to check if containers are running and handle restart/skip
+check_and_handle_running_containers() {
+    local repo_name="$1"
+    local base_path="$2"
+    local auto_mode="$3"
+    
+    local repo_path="$base_path/$repo_name"
+    if [ ! -d "$repo_path" ]; then
+        print_warning "Repository directory not found: $repo_path"
+        return 0  # Continue processing
+    fi
+    
+    cd "$repo_path"
+    
+    # Check for docker-compose file
+    local compose_file=""
+    if [ -f "docker-compose.yml" ]; then
+        compose_file="docker-compose.yml"
+    elif [ -f "docker-compose.yaml" ]; then
+        compose_file="docker-compose.yaml"
+    elif [ -f "compose.yml" ]; then
+        compose_file="compose.yml"
+    elif [ -f "compose.yaml" ]; then
+        compose_file="compose.yaml"
+    fi
+    
+    if [ -n "$compose_file" ]; then
+        print_status "Found $compose_file in $repo_name, checking for running containers..."
+        
+        # Check if any containers from this compose file are running
+        local running_containers=$(docker compose ps --services --filter "status=running" 2>/dev/null | wc -l)
+        
+        if [ "$running_containers" -gt 0 ]; then
+            print_warning "Found $running_containers running container(s) for $repo_name"
+            
+            if [ "$auto_mode" = true ]; then
+                print_status "Auto mode: Restarting containers for $repo_name..."
+                restart_containers "$compose_file" "$repo_name"
+                return 0  # Continue processing
+            else
+                # Interactive mode: ask user what to do
+                echo -n -e "${YELLOW}Containers are already running for $repo_name. Restart (r) or Skip (s)? [r/s]: ${NC}"
+                read -n 1 -r choice
+                echo
+                
+                case "$choice" in
+                    r|R)
+                        print_status "Restarting containers for $repo_name..."
+                        restart_containers "$compose_file" "$repo_name"
+                        return 0  # Continue processing
+                        ;;
+                    s|S)
+                        print_status "Skipping $repo_name and moving to next repository"
+                        return 1  # Skip this repository
+                        ;;
+                    *)
+                        print_status "Invalid choice, defaulting to restart..."
+                        restart_containers "$compose_file" "$repo_name"
+                        return 0  # Continue processing
+                        ;;
+                esac
+            fi
+        else
+            print_status "No running containers found for $repo_name"
+            return 0  # Continue processing
+        fi
+    else
+        print_status "No docker-compose file found in $repo_name"
+        return 0  # Continue processing
+    fi
+    
+    cd "$base_path"
+}
+
+# Function to restart containers
+restart_containers() {
+    local compose_file="$1"
+    local repo_name="$2"
+    
+    print_status "Stopping containers for $repo_name..."
+    if docker compose -f "$compose_file" down 2>&1 | tee -a "$LOG_FILE"; then
+        print_success "Containers stopped successfully for $repo_name"
+        
+        print_status "Starting containers for $repo_name..."
+        if docker compose -f "$compose_file" up -d 2>&1 | tee -a "$LOG_FILE"; then
+            print_success "Containers restarted successfully for $repo_name"
+        else
+            print_error "Failed to start containers for $repo_name"
+        fi
+    else
+        print_error "Failed to stop containers for $repo_name"
+    fi
+}
+
 process_repository() {
     local repo_name="$1"
     local repo_url="$2"
@@ -387,6 +481,14 @@ process_repository() {
     # First, clone/update the repository without make commands using remote stackup.sh
     print_status "Running remote stackup.sh for $repo_url"
     execute_remote_script "stackup.sh" "$repo_url"
+    
+    # Check if containers are already running after cloning/updating
+    # This function returns 1 if user chooses to skip, 0 to continue
+    if ! check_and_handle_running_containers "$repo_name" "$base_path" "$auto_mode"; then
+        print_status "Skipping all commands for $repo_name - moving to next repository"
+        cd "$original_dir"
+        return 0
+    fi
     
     # Then run make commands if make_commands are defined
     if [ -n "$make_commands" ]; then
@@ -413,13 +515,6 @@ process_repository() {
         print_status "No make commands defined for this repository"
     fi
     
-    # After all make commands, run integrated pre-check logic
-    local cc_url="${COOKIE_CUTTER_URL:-}" # If set, use non-interactive
-    if [ -n "$cc_url" ] || [ "$auto_mode" = true ]; then
-        run_pre_check_local "$base_path" "${cc_url:-superHeroName-nitrox-cc.getnitro.co.in}" true
-    else
-        run_pre_check_local "$base_path"
-    fi
     # Return to original directory
     cd "$original_dir"
 }
